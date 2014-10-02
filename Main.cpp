@@ -195,28 +195,29 @@ int main (int argc, char **argv){
          //cout << "cccccccc" << id << endl;
          int len;
          string nomArch = "./archivos originales/"  + gVal;
+         char mensajep_h[TAMANO];
          FILE * archbin;
          archbin = fopen(nomArch.c_str(),"rb");
          if(archbin!=NULL){ //si el archivo existe
             len=largoArchivo(nomArch);
             vector<string> bloques=cortaBytes(nomArch,len); 
             //copiar en la mitad de los discos el bloque y en la otra mitad el espejo
-            
-            for(int i=0; i<(int)bloques.size();i++){ // mientras no llegue al final del bloque
-              cout << "contenido blooooooooooooooooques: " << bloques.at(i) << endl;
+            for(int i=0; i<bloques.size();i++){ // mientras no llegue al final del bloque
+              //cout << "contenido blooooooooooooooooques: " << bloques.at(i) << endl;
                stringstream index;
                string ident;
                index << "" << i; 
                ident=index.str();
+               strcpy(mensajep_h,ident.c_str());
                int j = i % (nproc/2); // el contador j almacenará el modulo la mitad del número de procesos para seleccionar los originales y las copias por separado
-               write(fd[2*j][1],ident.c_str(),TAMANO); //escribe en el pipe el número del proceso que recibirá el mensaje
-               write(fd[2*j][1],bloques.at(i).c_str(),TAMANO); //escribe en el pipe el mensaje (string de 1024)
-               write(fd[2*j+(nproc/2)][1],ident.c_str(),TAMANO); //escribe en el pipe del espejo el mismo número de proceso 
-               write(fd[2*j+(nproc/2)][1],bloques.at(i).c_str(),TAMANO); //escribe en el pipe del espejo el mensaje (string de 1024)
-               /*if(i==(int)bloques.size()-1){
-                  write(fd[2*j+1][1],"-1",TAMANO);
-                }*/
-                cout << "\nbloque siguiente: " <<  endl;
+               write(fd[2*j][1],mensajep_h,TAMANO); //escribe en el pipe el mensaje (string de 1024)
+               strcpy(mensajep_h,bloques[i].c_str());
+               write(fd[2*j][1],mensajep_h,TAMANO);
+               //write(fd[2*i+(nproc/2)][1],mensajep_h,TAMANO); //escribe en el pipe del espejo el mismo número de proceso 
+               //write(fd[2*j+(nproc/2)][1],mensajep_h,TAMANO); //escribe en el pipe del espejo el mensaje (string de 1024)
+               //if(i==(int)bloques.size()-1){
+                 // write(fd[2*j+1][1],"-1",TAMANO);
+             //  }
             }
             cout << "\nEl archivo existe!" << endl; //se divide en subpartes 
          }
@@ -227,36 +228,34 @@ int main (int argc, char **argv){
       }
       else{ //soy hijo 
         int contParticiones=0;
-          while(true){
-              char * mensaje;
+              while(true){
+              char mensajeh_p[TAMANO];
               int identif;
-              char * iden;
-              char * direccion;
               
-              read(fd[2*id][0],iden,TAMANO);
-              cout << "\nlei :" <<iden <<endl;
-              read(fd[2*id][0],mensaje,TAMANO);
-              //cout << "\ngggggggggggg lei mensaje " << endl;
-              read(fd[2*id+(nproc/2)][0],iden,TAMANO);
-              //cout << "\nzzzzzzzzzzz lei copia " <<id << endl;
-              read(fd[2*id+(nproc/2)][0],mensaje,TAMANO);
-              cout << "\nLei mensaje copia:  " << mensaje << endl;
-              identif = atoi(iden);
-    
+              char * direccion;
+
+              
+              read(fd[2*id][0],mensajeh_p,TAMANO);
+              cout << "\nsoy hijo " << id << "lei id:" <<mensajeh_p <<endl;
+              read(fd[2*id][0],mensajeh_p,TAMANO);
+              cout << "\nsoy hijo " << id << "lei :" <<mensajeh_p <<endl;
+                  
               stringstream block;
               block << "file_0" << id;
               contParticiones++;
               cout << "archivo: " <<block.str() <<endl;
               /*name << "Discos\\ Raid/Disco_"<< iden << endl;*/
-              cout << mensaje << endl;
-              sprintf(direccion, "./Discos\\ Raid/Disco_%d/%s", identif, block.str().c_str());
-              
+              sprintf(direccion, "./Discos\\ Raid/Disco_%d/%s", id, block.str().c_str());
+              cout << "aquiiiiiiiiiiiiiiiiiiiii: " << direccion << endl;
+              chdir(direccion);
               FILE * bla;
               bla = fopen(block.str().c_str(), "wb");
-              if(bla==NULL)
-                cout << "\nla wea cagó";
-              cout << "\nse creo el fichero" << endl; 
-              fwrite(mensaje,1,TAMANO, bla);
+              if(bla==NULL){
+                cout << "\nNo se creó el fichero";
+                exit(0);
+              }
+              cout << "\nSe creo el fichero exitosamente" << endl; 
+              fwrite(mensajeh_p,1,TAMANO, bla);
               fclose(bla);
           }//al momento de crear el archivo le debo concatenar el identif para diferenciar los archivos creados 
       }
