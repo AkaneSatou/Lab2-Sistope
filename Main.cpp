@@ -191,7 +191,8 @@ int main (int argc, char **argv){
    }
    if(gflag==1){
       //cout << "bbbbbbbbbbb" << id << endl;
-      if(pid==1){ // si la ejecucion esta en el proceso padre
+      if(pid==1){ // si la ejecucion esta en el proceso padre  
+
          //cout << "cccccccc" << id << endl;
          int len;
          string nomArch = "./archivos originales/"  + gVal;
@@ -202,66 +203,93 @@ int main (int argc, char **argv){
             len=largoArchivo(nomArch);
             vector<string> bloques=cortaBytes(nomArch,len); 
             //copiar en la mitad de los discos el bloque y en la otra mitad el espejo
+            cout << "Soy el padre y hay " << bloques.size() << " bloques\n";
             for(int i=0; i<bloques.size();i++){ // mientras no llegue al final del bloque
-              //cout << "contenido blooooooooooooooooques: " << bloques.at(i) << endl;
+               int j = i % (nproc/2); // el contador j almacenará el modulo la mitad del número de procesos para seleccionar los originales y las copias por separado
+               //cout << "contenido blooooooooooooooooques: " << bloques.at(i) << endl;
                stringstream index;
                string ident;
-               index << "" << i; 
+               index << "" << i;
                ident=index.str();
+               
+               // envia el índice del bloque
                strcpy(mensajep_h,ident.c_str());
-               int j = i % (nproc/2); // el contador j almacenará el modulo la mitad del número de procesos para seleccionar los originales y las copias por separado
                write(fd[2*j][1],mensajep_h,TAMANO); //escribe en el pipe el mensaje (string de 1024)
+               write(fd[2*j+nproc][1],mensajep_h,TAMANO);  
+               
+               // envía el bloque.
                strcpy(mensajep_h,bloques[i].c_str());
                write(fd[2*j][1],mensajep_h,TAMANO);
-               //write(fd[2*i+(nproc/2)][1],mensajep_h,TAMANO); //escribe en el pipe del espejo el mismo número de proceso 
-               //write(fd[2*j+(nproc/2)][1],mensajep_h,TAMANO); //escribe en el pipe del espejo el mensaje (string de 1024)
-               //if(i==(int)bloques.size()-1){
-                 // write(fd[2*j+1][1],"-1",TAMANO);
-             //  }
+               write(fd[2*j+nproc][1],mensajep_h,TAMANO); 
             }
-            cout << "\nEl archivo existe!" << endl; //se divide en subpartes 
+
+            // enviar mensaje a los hijos para que se cierren.
+            for(int k=0;k<nproc;k++){
+              char ultimatum[TAMANO];
+              strcpy(ultimatum,"-1");
+              write(fd[2*k][1],ultimatum,TAMANO);
+            }    
+
+            // después de mandar a los hijos a acostar, esperar un ratito para que el padre los vea que se metan a la camita y todo eso
+            sleep(1);        
+
+            //cout << "\nEl archivo existe!" << endl; //se divide en subpartes 
          }
          else { 
-            cout << "\nEl archivo no existe\n"; // no hace nada 
+            //cout << "\nEl archivo no existe\n"; // no hace nada 
             exit(0);
-                     }
+          }
+
+          cout << "soy padre y ya no me queda ni una hueá más por hacer\n";
       }
       else{ //soy hijo 
-        int contParticiones=0;
-              while(true){
+        
+          while(true){
               char mensajeh_p[TAMANO];
-              int identif;
+              int identif; 
               
-              char * direccion;
+              read(fd[2*id][0],mensajeh_p,TAMANO);
+              identif = atoi(mensajeh_p); 
 
+            // entonces si identif es -1, quiere decir que no hay más mensajes y el hijo se tiene que ir a dormir :D jajaj siii
+              if(identif==-1){
+                //cout << "Soy hijo " << id << " y me fui a acostar\n"; 
+                break; // te voy a hacer caso.
+              }
               
-              read(fd[2*id][0],mensajeh_p,TAMANO);
-              cout << "\nsoy hijo " << id << "lei id:" <<mensajeh_p <<endl;
-              read(fd[2*id][0],mensajeh_p,TAMANO);
-              cout << "\nsoy hijo " << id << "lei :" <<mensajeh_p <<endl;
+              //cout << "\nsoy hijo " << id << "lei id:" <<mensajeh_p <<endl;
+              read(fd[2*id][0],mensajeh_p,TAMANO); 
+              //cout << "\nsoy hijo " << id << "lei :" <<mensajeh_p <<endl;
                   
               stringstream block;
-              block << "file_0" << id;
-              contParticiones++;
-              cout << "archivo: " <<block.str() <<endl;
-              /*name << "Discos\\ Raid/Disco_"<< iden << endl;*/
-              sprintf(direccion, "./Discos\\ Raid/Disco_%d/%s", id, block.str().c_str());
-              cout << "aquiiiiiiiiiiiiiiiiiiiii: " << direccion << endl;
-              chdir(direccion);
+              char direccion [25];
+              if(identif < 10) 
+                block << "file_0" << identif;
+              else 
+                block << "file_" << identif;
+
+              // :yap, entonces... el padre envía bloque1, por lo tanto el hijo 1 recibe "1" y por ende crea "file01" 
+              // y así, sustantivamente yeeeeeep. Probemos?
+              // esos archivos eran de antes, se nos olvidó borrarlos aaaaaaaaaaaaah 
+              //FUNCIOOOOOOOOOOOOOOOOOOOONAAAAAAAAAAAAAAA!!!!!!!!!!!!!! :D
+                          
+              sprintf(direccion, "Discos Raid/Disco_%d/%s", id+1, block.str().c_str()); 
+              //cout << "aqui estoy: " << direccion << endl;
+              //chdir(direccion);
               FILE * bla;
-              bla = fopen(block.str().c_str(), "wb");
+              bla = fopen(direccion, "wb");
               if(bla==NULL){
-                cout << "\nNo se creó el fichero";
+                //cout << "\nNo se creó el fichero";
                 exit(0);
               }
-              cout << "\nSe creo el fichero exitosamente" << endl; 
+              //cout << "\nSe creo el fichero exitosamente" << endl; 
               fwrite(mensajeh_p,1,TAMANO, bla);
               fclose(bla);
           }//al momento de crear el archivo le debo concatenar el identif para diferenciar los archivos creados 
       }
       /*si el archivo no esta en "originales", entonces AVISAR!
       si el archivo ya existe, AVISAR! y no hacer nada
-      si la operacion se hace correctamente, se hace y AVISAR!*/
+      si la operacion se hace correctamente, se hace y AVISAR!*/ // pulenta
    }
    if(eflag==1){
     /*eVal="Archivo que se le borrará un bloque"
